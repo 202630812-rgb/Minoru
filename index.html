@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>우산알림 - 스마트 등하교 우산 도우미</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome / Lucide Icons & Google Fonts (Pretendard-like Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Canvas Confetti for Celebration Effect -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans KR"', '"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              200: '#bae0fd',
+              300: '#7cc5fb',
+              400: '#36a8f7',
+              500: '#0c8ce9',
+              600: '#006ec7',
+              700: '#0058a3',
+              800: '#054b87',
+              900: '#0a3f70',
+            }
+          },
+          boxShadow: {
+            'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.08)',
+            'glow': '0 0 20px rgba(54, 168, 247, 0.35)',
+            'card': '0 10px 30px -5px rgba(0, 0, 0, 0.05)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar & Glassmorphism Utilities */
+    body {
+      font-family: 'Noto Sans KR', 'Plus Jakarta Sans', sans-serif;
+      background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 40%, #e1e7ff 100%);
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+
+    .glass-modal {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    /* Pulse & Ripple animations */
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(54, 168, 247, 0.4); }
+      50% { box-shadow: 0 0 25px rgba(54, 168, 247, 0.8); }
+    }
+
+    .pulse-glow {
+      animation: pulseGlow 2.5s infinite ease-in-out;
+    }
+
+    /* Custom Input styling */
+    input[type="time"]::-webkit-calendar-picker-indicator {
+      background: transparent;
+      bottom: 0;
+      color: transparent;
+      cursor: pointer;
+      height: auto;
+      left: 0;
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: auto;
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center p-0 sm:p-4 min-h-screen text-slate-800">
+
+  <!-- Main Mobile Canvas Shell -->
+  <div class="w-full max-w-md bg-slate-50/80 min-h-screen sm:min-h-[844px] sm:max-h-[900px] sm:rounded-[38px] shadow-2xl border border-white/60 flex flex-col relative overflow-hidden sm:my-auto">
+    
+    <!-- Top Decorative Gradient Header background -->
+    <div class="absolute top-0 left-0 right-0 h-52 bg-gradient-to-br from-brand-500 via-sky-400 to-indigo-500 rounded-b-[40px] opacity-90 -z-0"></div>
+    <div class="absolute -top-12 -right-12 w-40 h-40 bg-white/20 rounded-full blur-2xl"></div>
+    <div class="absolute top-20 -left-10 w-32 h-32 bg-indigo-300/30 rounded-full blur-xl"></div>
+
+    <!-- Scrollable Content Area -->
+    <div class="relative z-10 flex-1 overflow-y-auto px-5 pt-7 pb-24 space-y-5 scrollbar-none">
+      
+      <!-- Top App Header -->
+      <header class="flex items-center justify-between text-white pb-2">
+        <div>
+          <div class="flex items-center space-x-2">
+            <div class="w-9 h-9 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner border border-white/30">
+              <i data-lucide="umbrella" class="w-5 h-5 text-white"></i>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-white">우산알림</h1>
+            <span class="text-[10px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/30 backdrop-blur-sm">AI Pro</span>
+          </div>
+          <p class="text-xs text-sky-100 mt-1 font-medium">하교 시간 맞춤형 우산 분실 방지 시스템</p>
+        </div>
+        
+        <!-- Simulation Control Switcher -->
+        <button id="simBtn" onclick="toggleSimMenu()" class="p-2 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/30 text-white transition-all active:scale-95 text-xs flex items-center gap-1.5 font-medium shadow-sm">
+          <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+          <span>날씨 변경</span>
+        </button>
+      </header>
+
+      <!-- Weather Simulator Quick Selector Bar (Hidden by default, toggled via button) -->
+      <div id="simMenu" class="hidden glass-card p-3.5 rounded-2xl border border-white/80 shadow-card animate-fadeIn">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-slate-600 flex items-center gap-1">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-brand-500"></i> 날씨 시뮬레이션
+          </span>
+          <span class="text-[10px] text-slate-400">테스트용 상태 변경</span>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5 text-center">
+          <button onclick="setWeather('clear')" class="weather-btn p-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200/80 transition-all text-xs font-medium text-amber-700 flex flex-col items-center gap-1">
+            <i data-lucide="sun" class="w-4 h-4 text-amber-500"></i>
+            <span>맑음</span>
+          </button>
+          <button onclick="setWeather('light')" class="weather-btn p-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200/80 transition-all text-xs font-medium text-sky-700 flex flex-col items-center gap-1">
+            <i data-lucide="cloud-drizzle" class="w-4 h-4 text-sky-500"></i>
+            <span>보슬비</span>
+          </button>
+          <button onclick="setWeather('moderate')" class="weather-btn p-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200/80 transition-all text-xs font-medium text-blue-700 flex flex-col items-center gap-1">
+            <i data-lucide="cloud-rain" class="w-4 h-4 text-blue-500"></i>
+            <span>보통 비</span>
+          </button>
+          <button onclick="setWeather('heavy')" class="weather-btn p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-all text-xs font-medium text-indigo-700 flex flex-col items-center gap-1">
+            <i data-lucide="cloud-lightning" class="w-4 h-4 text-indigo-500"></i>
+            <span>폭우</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 1: Weekly Timetable Card -->
+      <div class="glass-card rounded-2xl p-4 shadow-card">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <div class="w-7 h-7 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center font-bold text-xs">
+              1
+            </div>
+            <h2 class="font-bold text-sm text-slate-800">주간 하교 시간표</h2>
+          </div>
+          <span class="text-[11px] font-semibold text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full border border-brand-100">
+            자동 저장
+          </span>
+        </div>
+
+        <!-- Weekday Pills -->
+        <div class="grid grid-cols-5 gap-1.5 mb-3.5" id="dayPillsContainer">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Time Picker for Selected Day -->
+        <div class="bg-white/80 rounded-xl p-3 border border-slate-100 flex items-center justify-between shadow-sm">
+          <div class="flex items-center gap-2">
+            <i data-lucide="clock" class="w-4 h-4 text-brand-500"></i>
+            <span id="selectedDayLabel" class="text-xs font-semibold text-slate-700">월요일 하교시간</span>
+          </div>
+          <div class="relative flex items-center">
+            <input type="time" id="timeInput" class="bg-slate-100 text-slate-800 text-sm font-bold px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-400 text-center cursor-pointer">
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: AI Weather & Umbrella Recommendation Card -->
+      <div class="glass-card rounded-2xl p-4 shadow-card relative overflow-hidden">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <div class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+              2
+            </div>
+            <h2 class="font-bold text-sm text-slate-800">AI 날씨 & 우산 가이드</h2>
+          </div>
+          <span id="weatherTimeBadge" class="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
+            하교시간 기준
+          </span>
+        </div>
+
+        <!-- Dynamic Weather Card Inner -->
+        <div id="aiWeatherCard" class="bg-gradient-to-br from-sky-500 to-brand-600 rounded-xl p-4 text-white shadow-md transition-all duration-300">
+          <div class="flex items-start justify-between">
+            <div class="space-y-1">
+              <div class="flex items-center gap-1.5">
+                <span id="rainBadge" class="text-[11px] font-bold bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/30">
+                  강수확률 80%
+                </span>
+                <span id="intensityBadge" class="text-[11px] font-bold bg-amber-400/90 text-amber-950 px-2 py-0.5 rounded-full shadow-sm">
+                  보통 비
+                </span>
+              </div>
+              <h3 id="recommendTitle" class="text-lg font-extrabold pt-1 tracking-tight">
+                장우산을 지참하세요 ☂️
+              </h3>
+            </div>
+            <div id="weatherIconContainer" class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 text-white shadow-inner">
+              <i data-lucide="cloud-rain" class="w-7 h-7"></i>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-white/15 flex items-start gap-2 text-xs text-sky-50 leading-relaxed">
+            <i data-lucide="sparkles" class="w-4 h-4 text-amber-300 shrink-0 mt-0.5"></i>
+            <p id="aiTipText">
+              하교시간대 내릴 비에 바지가 젖을 수 있어요. 넓은 일반 장우산이 가장 안전합니다!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Trigger Action Button -->
+      <button onclick="registerAlarmAndCheck()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-brand-500 via-sky-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 text-white font-bold text-base shadow-glow hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 group">
+        <i data-lucide="bell-ring" class="w-5 h-5 group-hover:rotate-12 transition-transform"></i>
+        <span>날씨 확인 및 알림 등록하기</span>
+      </button>
+
+      <!-- Active Alarm Status Banner (When Alarm Scheduled) -->
+      <div id="statusBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-3 animate-fadeIn">
+        <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+          <i data-lucide="check" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1 text-xs">
+          <p class="font-bold text-emerald-800">우산알림 설정 완료!</p>
+          <p class="text-emerald-600" id="statusBannerText">오늘 하교 시간(16:30)에 푸시 알림이 도착합니다.</p>
+        </div>
+        <button onclick="simulateNotification()" class="text-[11px] bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded-lg hover:bg-emerald-700 transition">
+          알림 테스트
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Bottom Navigation Bar (App Shell aesthetics) -->
+    <div class="absolute bottom-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-lg border-t border-slate-200/60 flex items-center justify-around px-6 z-20">
+      <button class="flex flex-col items-center gap-0.5 text-brand-600">
+        <i data-lucide="home" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold">홈</span>
+      </button>
+      <button class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600">
+        <i data-lucide="calendar" class="w-5 h-5"></i>
+        <span class="text-[10px] font-medium">시간표</span>
+      </button>
+      <button class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600">
+        <i data-lucide="cloud-sun" class="w-5 h-5"></i>
+        <span class="text-[10px] font-medium">주간날씨</span>
+      </button>
+      <button class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600">
+        <i data-lucide="user" class="w-5 h-5"></i>
+        <span class="text-[10px] font-medium">마이</span>
+      </button>
+    </div>
+
+    <!-- STEP 3 & 4: Interactive Leave Alert Modal / Popover -->
+    <div id="alertModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div class="w-full max-w-sm glass-modal rounded-3xl p-6 border border-white/80 shadow-2xl space-y-4 transform transition-all scale-100">
+        
+        <!-- Modal Top Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <span class="text-xs font-bold text-amber-600 uppercase tracking-wider">학교종이 울렸어요!</span>
+          </div>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Modal Content Main Body -->
+        <div class="text-center space-y-2">
+          <div class="w-16 h-16 bg-gradient-to-tr from-brand-500 to-indigo-500 text-white rounded-3xl mx-auto flex items-center justify-center shadow-glow animate-bounce">
+            <i data-lucide="umbrella" class="w-8 h-8"></i>
+          </div>
+          <h3 class="text-xl font-extrabold text-slate-800">우산 챙길 시간입니다!</h3>
+          <p class="text-xs text-slate-500 leading-normal" id="modalSubtext">
+            하교길에 비가 내리고 있어요. 교실에 두고 가지 않도록 꼭 확인하세요!
+          </p>
+        </div>
+
+        <!-- Checklist Component -->
+        <div class="bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/80 space-y-2">
+          <p class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+            <i data-lucide="check-square" class="w-3.5 h-3.5 text-brand-500"></i> 하교 전 필수 체크리스트
+          </p>
+          
+          <label class="flex items-center gap-2.5 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-50 transition">
+            <input type="checkbox" class="w-4 h-4 rounded text-brand-500 focus:ring-brand-400 cursor-pointer modal-check">
+            <span class="text-xs font-medium text-slate-700">책상 옆 걸이/걸쇠 우산 확인</span>
+          </label>
+          
+          <label class="flex items-center gap-2.5 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-50 transition">
+            <input type="checkbox" class="w-4 h-4 rounded text-brand-500 focus:ring-brand-400 cursor-pointer modal-check">
+            <span class="text-xs font-medium text-slate-700">사물함/우산꽂이 챙기기</span>
+          </label>
+        </div>
+
+        <!-- Action Confirmation Button -->
+        <button onclick="confirmTakeUmbrella()" class="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2">
+          <span>우산 챙겼어요! 🎉</span>
+        </button>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // State management
+    const days = ['월', '화', '수', '목', '금'];
+    const timetable = {
+      '월': '16:30',
+      '화': '15:40',
+      '수': '15:40',
+      '목': '16:30',
+      '금': '14:50'
+    };
+    
+    let activeDay = '월';
+    let currentWeather = 'moderate'; // 'clear', 'light', 'moderate', 'heavy'
+
+    const weatherData = {
+      clear: {
+        rainProbability: '10%',
+        intensityText: '비 안옴',
+        intensityBadgeClass: 'bg-emerald-100 text-emerald-800',
+        bgGradient: 'from-amber-400 to-orange-500',
+        title: '우산이 필요 없어요 ☀️',
+        icon: 'sun',
+        tip: '오늘은 하교 시간까지 맑은 날씨가 유지됩니다. 가벼운 발걸음으로 귀가하세요!'
+      },
+      light: {
+        rainProbability: '50%',
+        intensityText: '약한 보슬비',
+        intensityBadgeClass: 'bg-sky-100 text-sky-800',
+        bgGradient: 'from-sky-400 to-blue-500',
+        title: '접이식 단우산 추천 ☂️',
+        icon: 'cloud-drizzle',
+        tip: '가벼운 보슬비가 내려요. 가방 측면에 쏙 들어가는 접이식 단우산을 추천합니다.'
+      },
+      moderate: {
+        rainProbability: '85%',
+        intensityText: '보통 비',
+        intensityBadgeClass: 'bg-blue-100 text-blue-950',
+        bgGradient: 'from-sky-500 to-brand-600',
+        title: '일반 장우산을 챙기세요 ☔',
+        icon: 'cloud-rain',
+        tip: '하교시간대 지속적인 비가 내립니다. 신발이나 바지 끝이 젖지 않게 장우산이 좋습니다!'
+      },
+      heavy: {
+        rainProbability: '98%',
+        intensityText: '강한 폭우/천둥',
+        intensityBadgeClass: 'bg-rose-100 text-rose-800',
+        bgGradient: 'from-indigo-600 via-purple-600 to-slate-800',
+        title: '튼튼한 장우산 필수! ⚡',
+        icon: 'cloud-lightning',
+        tip: '강풍을 동반한 폭우가 예상됩니다. 튼튼한 장우산을 꼭 챙기고 하교 시 주변 안전에 유의하세요!'
+      }
+    };
+
+    // DOM Ready Initialization
+    document.addEventListener('DOMContentLoaded', () => {
+      renderDayPills();
+      updateTimeInput();
+      updateWeatherCard();
+      lucide.createIcons();
+    });
+
+    // Render Weekday Pills
+    function renderDayPills() {
+      const container = document.getElementById('dayPillsContainer');
+      container.innerHTML = '';
+
+      days.forEach(day => {
+        const isActive = day === activeDay;
+        const pill = document.createElement('button');
+        pill.className = `py-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+          isActive 
+            ? 'bg-brand-500 text-white shadow-md scale-105 ring-2 ring-brand-300' 
+            : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'
+        }`;
+        pill.onclick = () => selectDay(day);
+        pill.innerHTML = `
+          <span>${day}</span>
+          <span class="text-[10px] opacity-80 font-normal">${timetable[day]}</span>
+        `;
+        container.appendChild(pill);
+      });
+    }
+
+    // Select Day Handler
+    function selectDay(day) {
+      activeDay = day;
+      renderDayPills();
+      updateTimeInput();
+      document.getElementById('selectedDayLabel').innerText = `${day}요일 하교시간`;
+    }
+
+    // Update Input value
+    function updateTimeInput() {
+      const timeInput = document.getElementById('timeInput');
+      timeInput.value = timetable[activeDay];
+      timeInput.onchange = (e) => {
+        timetable[activeDay] = e.target.value;
+        renderDayPills();
+      };
+    }
+
+    // Weather Simulation Selector Menu Toggle
+    function toggleSimMenu() {
+      const menu = document.getElementById('simMenu');
+      menu.classList.toggle('hidden');
+    }
+
+    // Set Weather State
+    function setWeather(type) {
+      currentWeather = type;
+      updateWeatherCard();
+    }
+
+    // Dynamic UI Renderer for AI Weather Guide Card
+    function updateWeatherCard() {
+      const data = weatherData[currentWeather];
+      const card = document.getElementById('aiWeatherCard');
+      
+      // Update Tailwind gradient background smoothly
+      card.className = `bg-gradient-to-br ${data.bgGradient} rounded-xl p-4 text-white shadow-md transition-all duration-300`;
+      
+      document.getElementById('rainBadge').innerText = `강수확률 ${data.rainProbability}`;
+      
+      const intensityBadge = document.getElementById('intensityBadge');
+      intensityBadge.innerText = data.intensityText;
+      intensityBadge.className = `text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm ${data.intensityBadgeClass}`;
+
+      document.getElementById('recommendTitle').innerText = data.title;
+      document.getElementById('aiTipText').innerText = data.tip;
+
+      // Update Icon
+      const iconContainer = document.getElementById('weatherIconContainer');
+      iconContainer.innerHTML = `<i data-lucide="${data.icon}" class="w-7 h-7"></i>`;
+      
+      lucide.createIcons();
+    }
+
+    // Register Notification Action
+    function registerAlarmAndCheck() {
+      const time = timetable[activeDay];
+      const banner = document.getElementById('statusBanner');
+      const bannerText = document.getElementById('statusBannerText');
+      
+      bannerText.innerText = `오늘(${activeDay}요일) 하교 시간 ${time}에 우산 알림이 울립니다.`;
+      banner.classList.remove('hidden');
+
+      // Scroll to banner smoothly
+      banner.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    // Simulate Receiving Notification
+    function simulateNotification() {
+      const modal = document.getElementById('alertModal');
+      const subtext = document.getElementById('modalSubtext');
+      
+      const data = weatherData[currentWeather];
+      subtext.innerText = `${activeDay}요일 하교 시간(${timetable[activeDay]})입니다! ${data.title} 잊지 않으셨죠?`;
+      
+      modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('alertModal').classList.add('hidden');
+    }
+
+    // Confetti Celebration when user checks umbrella
+    function confirmTakeUmbrella() {
+      closeModal();
+
+      // Trigger Celebration Confetti
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.7 },
+        colors: ['#3b82f6', '#60a5fa', '#93c5fd', '#34d399', '#fbbf24']
+      });
+
+      // Reset checkboxes
+      document.querySelectorAll('.modal-check').forEach(cb => cb.checked = false);
+    }
+  </script>
+
+</body>
+</html>
